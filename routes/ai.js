@@ -271,7 +271,8 @@ Please rewrite the entire chapter incorporating these changes. Make the chapter 
       ],
       model: 'llama-3.3-70b-versatile',
       temperature: 0.7,
-      max_tokens: 8000
+      max_tokens: 4000,
+      timeout: 60000
     });
 
     const editedContent = completion.choices[0].message.content;
@@ -282,9 +283,18 @@ Please rewrite the entire chapter incorporating these changes. Make the chapter 
     });
 
   } catch (error) {
-    console.error('AI edit error:', error.message);
+    console.error('AI generation error:', error.message);
+    
+    if (error.message.includes('timeout') || error.message.includes('deadline')) {
+      return res.status(408).json({ message: 'The AI took too long to respond. Please try again.' });
+    }
+    
+    if (error.message.includes('rate_limit') || error.message.includes('429')) {
+      return res.status(429).json({ message: 'Too many requests. Please wait a moment and try again.' });
+    }
+
     res.status(500).json({
-      message: 'Error editing content. Please try again.',
+      message: 'Error generating content. Please try again.',
       error: error.message
     });
   }
