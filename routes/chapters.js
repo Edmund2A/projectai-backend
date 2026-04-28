@@ -42,6 +42,7 @@ router.get('/:projectId', authMiddleware, async (req, res) => {
 });
 
 // ── Save chapter content ──
+// ── Save chapter content ──
 router.put('/:projectId/chapter/:chapterNum', authMiddleware, async (req, res) => {
   try {
     const { content, status, chartData } = req.body;
@@ -87,26 +88,6 @@ router.put('/:projectId/chapter/:chapterNum', authMiddleware, async (req, res) =
   }
 });
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ message: 'Chapter not found.' });
-    }
-
-    // Update project updated_at
-    await pool.query(
-      'UPDATE projects SET updated_at = CURRENT_TIMESTAMP WHERE id = $1',
-      [projectId]
-    );
-
-    res.json({
-      message: 'Chapter saved successfully.',
-      chapter: result.rows[0]
-    });
-
-  } catch (error) {
-    console.error('Save chapter error:', error.message);
-    res.status(500).json({ message: 'Error saving chapter.' });
-  }
-});
 
 // ── Upload dataset ──
 router.post('/:projectId/dataset', authMiddleware, upload.single('dataset'), async (req, res) => {
