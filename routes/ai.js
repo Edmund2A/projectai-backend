@@ -269,7 +269,7 @@ Please rewrite the entire chapter incorporating these changes. Make the chapter 
           content: prompt
         }
       ],
-      model: 'llama-3.3-70b-versatile',
+      model: 'llama3-8b-8192',
       temperature: 0.7,
       max_tokens: 4000,
       timeout: 60000
