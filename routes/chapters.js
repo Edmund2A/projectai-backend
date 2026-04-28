@@ -47,16 +47,45 @@ router.put('/:projectId/chapter/:chapterNum', authMiddleware, async (req, res) =
     const { content, status, chartData } = req.body;
     const { projectId, chapterNum } = req.params;
 
-    const result = await pool.query(
-      `UPDATE chapters SET
-        content = COALESCE($1, content),
-        status = COALESCE($2, status),
-        chart_data = COALESCE($3, chart_data),
-        updated_at = CURRENT_TIMESTAMP
-       WHERE project_id = $4 AND chapter_number = $5
-       RETURNING *`,
-      [content, status, chartData ? JSON.stringify(chartData) : null, projectId, chapterNum]
+    // Check if chapter exists
+    const existing = await pool.query(
+      'SELECT id FROM chapters WHERE project_id = $1 AND chapter_number = $2',
+      [projectId, chapterNum]
     );
+
+    if (existing.rows.length === 0) {
+      // Create chapter if it does not exist
+      await pool.query(
+        `INSERT INTO chapters (project_id, chapter_number, title, content, status)
+         VALUES ($1, $2, $3, $4, $5)`,
+        [projectId, chapterNum, 'Chapter ' + chapterNum, content, status || 'active']
+      );
+    } else {
+      // Update existing chapter
+      await pool.query(
+        `UPDATE chapters SET
+          content = $1,
+          status = COALESCE($2, status),
+          chart_data = COALESCE($3, chart_data),
+          updated_at = CURRENT_TIMESTAMP
+         WHERE project_id = $4 AND chapter_number = $5`,
+        [content, status, chartData ? JSON.stringify(chartData) : null, projectId, chapterNum]
+      );
+    }
+
+    // Update project updated_at
+    await pool.query(
+      'UPDATE projects SET updated_at = CURRENT_TIMESTAMP, current_chapter = $1 WHERE id = $2',
+      [chapterNum, projectId]
+    );
+
+    res.json({ message: 'Chapter saved successfully.' });
+
+  } catch (error) {
+    console.error('Save chapter error:', error.message);
+    res.status(500).json({ message: 'Error saving chapter.' });
+  }
+});
 
     if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Chapter not found.' });
