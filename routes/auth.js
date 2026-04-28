@@ -150,5 +150,59 @@ router.get('/me', async (req, res) => {
     res.status(401).json({ message: 'Invalid or expired token.' });
   }
 });
+// ── Google Login ──
+router.post('/google', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) return res.status(400).json({ message: 'No credential provided.' });
+
+    // Decode the Google JWT token
+    const base64Url = credential.split('.')[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => {
+      return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+    }).join(''));
+
+    const googleUser = JSON.parse(jsonPayload);
+    const { email, given_name, family_name, sub } = googleUser;
+
+    // Check if user already exists
+    let result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    let user;
+
+    if (result.rows.length === 0) {
+      const newUser = await pool.query(
+        `INSERT INTO users (first_name, last_name, email, password, university, department, country, level)
+         VALUES ($1, $2, $3, $4, '', '', '', '')
+         RETURNING id, first_name, last_name, email`,
+        [given_name, family_name || '', email, 'google_oauth_' + sub]
+      );
+      user = newUser.rows[0];
+    } else {
+      user = result.rows[0];
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email },
+      process.env.JWT_SECRET,
+      { expiresIn: '7d' }
+    );
+
+    res.json({
+      message: 'Google login successful!',
+      token,
+      user: {
+        id: user.id,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email
+      }
+    });
+
+  } catch (error) {
+    console.error('Google auth error:', error.message);
+    res.status(500).json({ message: 'Google authentication failed. Please try again.' });
+  }
+});
 
 module.exports = router;
