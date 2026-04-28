@@ -105,4 +105,57 @@ router.post('/:projectId/dataset', authMiddleware, upload.single('dataset'), asy
   }
 });
 
+// ── Save prompt history ──
+router.post('/:projectId/history', authMiddleware, async (req, res) => {
+  try {
+    const { chapterNumber, prompt, response } = req.body;
+    const { projectId } = req.params;
+
+    // Get chapter id
+    const chapterResult = await pool.query(
+      'SELECT id FROM chapters WHERE project_id = $1 AND chapter_number = $2',
+      [projectId, chapterNumber]
+    );
+
+    if (chapterResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Chapter not found.' });
+    }
+
+    const chapterId = chapterResult.rows[0].id;
+
+    await pool.query(
+      'INSERT INTO prompts (chapter_id, user_prompt, ai_response) VALUES ($1, $2, $3)',
+      [chapterId, prompt, response]
+    );
+
+    res.json({ message: 'History saved successfully.' });
+
+  } catch (error) {
+    console.error('Save history error:', error.message);
+    res.status(500).json({ message: 'Error saving history.' });
+  }
+});
+
+// ── Get prompt history ──
+router.get('/:projectId/history', authMiddleware, async (req, res) => {
+  try {
+    const { projectId } = req.params;
+
+    const result = await pool.query(
+      `SELECT p.*, c.chapter_number, c.title 
+       FROM prompts p 
+       JOIN chapters c ON p.chapter_id = c.id 
+       WHERE c.project_id = $1 
+       ORDER BY p.created_at DESC`,
+      [projectId]
+    );
+
+    res.json(result.rows);
+
+  } catch (error) {
+    console.error('Get history error:', error.message);
+    res.status(500).json({ message: 'Error fetching history.' });
+  }
+});
+
 module.exports = router;
