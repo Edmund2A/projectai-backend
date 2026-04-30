@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
 const Groq = require('groq-sdk');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // ── Initialise Groq ──
 const groq = new Groq({
@@ -201,21 +203,38 @@ router.post('/generate', authMiddleware, async (req, res) => {
     }
 
     // Call Groq API with higher token limit
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert academic writer specialising in Nigerian university research projects. You write in a natural, human academic style that does not sound AI-generated. Your writing is formal, thorough, and academically rigorous. You always write very long, detailed and comprehensive chapters. You never use bullet points. You always write in proper academic paragraphs. You never truncate or shorten your responses.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      model: 'llama-3.3-70b-versatile',
-      temperature: 0.7,
-      max_tokens: 8000
-    });
+    let generatedContent;
+
+    try {
+      // ── Try Groq first ──
+      const completion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert academic writer specialising in Nigerian university research projects. You write in a natural, human academic style that does not sound AI-generated. Your writing is formal, thorough, and academically rigorous. You never use bullet points. You always write in proper academic paragraphs.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        model: 'llama3-8b-8192',
+        temperature: 0.7,
+        max_tokens: 2000
+      });
+
+      generatedContent = completion.choices[0].message.content;
+      console.log('Generated with Groq');
+
+    } catch (groqError) {
+      console.log('Groq failed, switching to Gemini:', groqError.message);
+
+      // ── Fall back to Gemini ──
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const result = await model.generateContent(prompt);
+      generatedContent = result.response.text();
+      console.log('Generated with Gemini');
+    }
 
     const generatedContent = completion.choices[0].message.content;
 
