@@ -3,7 +3,6 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const Groq = require('groq-sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-// const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // ── Initialise Groq & Gemini ──
 const groq = new Groq({
@@ -203,7 +202,6 @@ router.post('/generate', authMiddleware, async (req, res) => {
       prompt += ` Additional instructions from the student: ${userPrompt}`;
     }
 
-    // Call Groq API with higher token limit
     let generatedContent;
 
     try {
@@ -237,8 +235,6 @@ router.post('/generate', authMiddleware, async (req, res) => {
       console.log('Generated with Gemini');
     }
 
-    const generatedContent = completion.choices[0].message.content;
-
     // Generate chart data for chapter 3
     let chartData = null;
     if (chapterNumber === 3) {
@@ -255,6 +251,15 @@ router.post('/generate', authMiddleware, async (req, res) => {
 
   } catch (error) {
     console.error('AI generation error:', error.message);
+
+    if (error.message.includes('timeout') || error.message.includes('deadline')) {
+      return res.status(408).json({ message: 'The AI took too long to respond. Please try again.' });
+    }
+
+    if (error.message.includes('rate_limit') || error.message.includes('429')) {
+      return res.status(429).json({ message: 'Too many requests. Please wait a moment and try again.' });
+    }
+
     res.status(500).json({
       message: 'Error generating content. Please try again.',
       error: error.message
@@ -278,24 +283,38 @@ The student has requested the following changes: "${userPrompt}"
 
 Please rewrite the entire chapter incorporating these changes. Make the chapter much longer and more detailed than the original. Maintain formal academic English suitable for a Nigerian university. Write naturally as a human academic writer would. Never use bullet points. Always write in proper academic paragraphs. The rewritten chapter must be comprehensive and thorough.`;
 
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: 'system',
-          content: 'You are an expert academic writer and editor specialising in Nigerian university research projects. You write and edit in a natural, human academic style that does not sound AI-generated. You always produce very long, detailed and comprehensive chapters.'
-        },
-        {
-          role: 'user',
-          content: prompt
-        }
-      ],
-      model: 'llama3-8b-8192',
-      temperature: 0.7,
-      max_tokens: 4000,
-      timeout: 60000
-    });
+    let editedContent;
 
-    const editedContent = completion.choices[0].message.content;
+    try {
+      // ── Try Groq first ──
+      const completion = await groq.chat.completions.create({
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert academic writer and editor specialising in Nigerian university research projects. You write and edit in a natural, human academic style that does not sound AI-generated. You always produce very long, detailed and comprehensive chapters.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        model: 'llama3-8b-8192',
+        temperature: 0.7,
+        max_tokens: 2000
+      });
+
+      editedContent = completion.choices[0].message.content;
+      console.log('Edited with Groq');
+
+    } catch (groqError) {
+      console.log('Groq failed, switching to Gemini:', groqError.message);
+
+      // ── Fall back to Gemini ──
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const result = await model.generateContent(prompt);
+      editedContent = result.response.text();
+      console.log('Edited with Gemini');
+    }
 
     res.json({
       message: 'Chapter updated successfully.',
@@ -303,18 +322,18 @@ Please rewrite the entire chapter incorporating these changes. Make the chapter 
     });
 
   } catch (error) {
-    console.error('AI generation error:', error.message);
-    
+    console.error('AI edit error:', error.message);
+
     if (error.message.includes('timeout') || error.message.includes('deadline')) {
       return res.status(408).json({ message: 'The AI took too long to respond. Please try again.' });
     }
-    
+
     if (error.message.includes('rate_limit') || error.message.includes('429')) {
       return res.status(429).json({ message: 'Too many requests. Please wait a moment and try again.' });
     }
 
     res.status(500).json({
-      message: 'Error generating content. Please try again.',
+      message: 'Error editing content. Please try again.',
       error: error.message
     });
   }
