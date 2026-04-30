@@ -237,7 +237,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
       console.log('Generated with Gemini');
     }
 
-    // const generatedContent = completion.choices[0].message.content;
+    const generatedContent = completion.choices[0].message.content;
 
     // Generate chart data for chapter 3
     let chartData = null;
