@@ -3,12 +3,13 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const Groq = require('groq-sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+// const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// ── Initialise Groq ──
+// ── Initialise Groq & Gemini ──
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY
 });
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 // ── Auth middleware ──
 const authMiddleware = (req, res, next) => {
@@ -236,7 +237,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
       console.log('Generated with Gemini');
     }
 
-    const generatedContent = completion.choices[0].message.content;
+    // const generatedContent = completion.choices[0].message.content;
 
     // Generate chart data for chapter 3
     let chartData = null;
