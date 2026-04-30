@@ -229,7 +229,7 @@ router.post('/generate', authMiddleware, async (req, res) => {
       console.log('Groq failed, switching to Gemini:', groqError.message);
 
       // ── Fall back to Gemini ──
-      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
       const result = await model.generateContent(prompt);
       generatedContent = result.response.text();
       console.log('Generated with Gemini');
