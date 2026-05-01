@@ -6,9 +6,9 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { CohereClient } = require('cohere-ai');
 
 // ── Initialise AI providers ──
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const cohere = new CohereClient({ token: process.env.COHERE_API_KEY });
+const groq = process.env.GROQ_API_KEY ? new Groq({ apiKey: process.env.GROQ_API_KEY }) : null;
+const genAI = process.env.GEMINI_API_KEY ? new GoogleGenerativeAI(process.env.GEMINI_API_KEY) : null;
+const cohere = process.env.COHERE_API_KEY ? new CohereClient({ token: process.env.COHERE_API_KEY }) : null;
 
 // ── Auth middleware ──
 const authMiddleware = (req, res, next) => {
@@ -54,6 +54,7 @@ const generateChartData = () => {
 
 // ── Generate with Groq ──
 const generateWithGroq = async (prompt) => {
+  if (!groq) throw new Error('Groq not configured');
   const completion = await groq.chat.completions.create({
     messages: [
       {
@@ -69,22 +70,27 @@ const generateWithGroq = async (prompt) => {
   return completion.choices[0].message.content;
 };
 
-// ── Generate with Gemini ──
 const generateWithGemini = async (prompt) => {
+  if (!genAI) throw new Error('Gemini not configured');
   const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
   const result = await model.generateContent(prompt);
   return result.response.text();
 };
 
-// ── Generate with Cohere ──
 const generateWithCohere = async (prompt) => {
-  const response = await cohere.generate({
-    model: 'command',
-    prompt: `You are an expert academic writer for Nigerian universities. Write formally, naturally, never use bullet points, always use paragraphs.\n\n${prompt}`,
+  if (!cohere) throw new Error('Cohere not configured');
+  const response = await cohere.chat({
+    model: 'command-r',
+    messages: [
+      {
+        role: 'user',
+        content: `You are an expert academic writer for Nigerian universities. Write formally, naturally, never use bullet points, always use paragraphs.\n\n${prompt}`
+      }
+    ],
     maxTokens: 1500,
     temperature: 0.7
   });
-  return response.generations[0].text;
+  return response.message.content[0].text;
 };
 
 // ── Try all providers in order ──
